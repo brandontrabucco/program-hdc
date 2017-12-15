@@ -1,0 +1,9 @@
+*.ini
+**/.git
+**/.vscode
+**/.ipynb_checkpoints
+**/Backups
+**/Citations
+**/Datasets
+**/Papers
+**/Results
