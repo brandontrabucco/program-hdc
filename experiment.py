@@ -13,7 +13,7 @@ SEQUENCE_LENGTH = 4
 MEMORY_LOCATIONS = 1000
 MEMORY_DEPTH = 4
 HIDDEN_SIZE = 100
-INITIAL_LEARNING_RATE = 0.0000000000000001
+INITIAL_LEARNING_RATE = 0.0001
 DECAY_STEPS = SEQUENCE_LENGTH
 DECAY_FACTOR = 1.0
 
@@ -193,7 +193,7 @@ def controller(data_in):
 
         linear_w = initialize_weights_cpu(
             scope.name,
-            [SEQUENCE_LENGTH + (MEMORY_LOCATIONS * MEMORY_DEPTH), HIDDEN_SIZE])
+            [SEQUENCE_LENGTH + (MEMORY_LOCATIONS * MEMORY_DEPTH * 2), HIDDEN_SIZE])
 
         linear_b = initialize_biases_cpu(
             scope.name,
@@ -312,18 +312,22 @@ def update_memory(add_location, add_content, select_location, select_content):
             add_location,
             add_content)
 
-        selection = hypercomplex_multiply(
-            hypercomplex_multiply(
-                memory,
-                hypercomplex_conjugate(select_content)),
-            hypercomplex_multiply(
-                hypercomplex_conjugate(select_location),
-                memory))
+        recovered_location = hypercomplex_multiply(
+            memory,
+            hypercomplex_conjugate(select_content))
+
+        recovered_content = hypercomplex_multiply(
+            hypercomplex_conjugate(select_location),
+            memory)
+
+        selection = tf.concat([
+            recovered_location,
+            recovered_content], 0)
 
     MEMORY_INITIALIZED = True
     return tf.reshape(
         selection,
-        [MEMORY_LOCATIONS * MEMORY_DEPTH, 1])
+        [MEMORY_LOCATIONS * MEMORY_DEPTH * 2, 1])
 
 
 def similarity_loss(labels, prediction, uncertainty, collection):
@@ -370,7 +374,7 @@ def minimize(loss, parameters):
 
 
 def train_model(num_epochs=1):
-    
+
     reset_kernel()
 
     num_steps = num_epochs * SEQUENCE_LENGTH
@@ -387,7 +391,7 @@ def train_model(num_epochs=1):
             dtype=tf.int32)
         data_tensor = tf.one_hot(data_indices, SEQUENCE_LENGTH)
 
-        feedback = tf.zeros([(MEMORY_LOCATIONS * MEMORY_DEPTH), 1])
+        feedback = tf.zeros([(MEMORY_LOCATIONS * MEMORY_DEPTH * 2), 1])
         predicted_sequence = tf.zeros([SEQUENCE_LENGTH, 0])
         uncertainty_sequence = tf.zeros([SEQUENCE_LENGTH, 0])
 
