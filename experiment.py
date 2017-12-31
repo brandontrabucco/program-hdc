@@ -4,16 +4,17 @@ import matplotlib.pyplot as plt
 
 
 PROJECT_BASEDIR = ("G:/My Drive/Academic/Research/" +
-                   "Program Synthesis using HDC/")
+    "Program Synthesis using HDC/")
 PLOT_BASEDIR = (PROJECT_BASEDIR + "Results/")
 CHECKPOINT_BASEDIR = (PROJECT_BASEDIR + "Backups/")
 
 
-SEQUENCE_LENGTH = 10
-MEMORY_LOCATIONS = 10000
-MEMORY_DEPTH = 16
+SEQUENCE_LENGTH = 8
+MEMORY_LOCATIONS = 512
+MEMORY_DEPTH = 8
 HIDDEN_SIZE = 256
-INITIAL_LEARNING_RATE = 0.0001
+INITIAL_LEARNING_RATE = 0.01
+UNCERTAINTY_FACTOR = 1.0
 DECAY_STEPS = SEQUENCE_LENGTH
 DECAY_FACTOR = 1.0
 
@@ -39,33 +40,53 @@ COLLECTION_LOSSES = "_losses"
 COLLECTION_PARAMETERS = "_params"
 
 
-def hypercomplex_conjugate(a, n=MEMORY_DEPTH):
+def hypercomplex_conjugate_2d(a, m=MEMORY_DEPTH):
 
-    if n == 1:
+    if m == 1:
         return a
 
     else:
 
         return tf.concat([
 
-            hypercomplex_conjugate(
-                tf.strided_slice(
+            hypercomplex_conjugate_2d(
+                tf.slice(
                     a,
                     [0, 0],
-                    [MEMORY_LOCATIONS, (n - 1)],
-                    strides=[1, 1]),
-                (n - 1)),
+                    [MEMORY_LOCATIONS, (m - 1)]),
+                m=(m - 1)),
 
-            (-1 * tf.strided_slice(
+            (-1 * tf.slice(
                 a,
-                [0, (n - 1)],
-                [MEMORY_LOCATIONS, n],
-                strides=[1, 1]))], 1)
+                [0, (m - 1)],
+                [MEMORY_LOCATIONS, 1]))], 1)
 
 
-def hypercomplex_multiply(a, b, n=MEMORY_DEPTH):
+def hypercomplex_conjugate_3d(a, m=MEMORY_DEPTH):
 
-    if n == 1:
+    if m == 1:
+        return a
+
+    else:
+
+        return tf.concat([
+
+            hypercomplex_conjugate_2d(
+                tf.slice(
+                    a,
+                    [0, 0, 0],
+                    [MEMORY_LOCATIONS, MEMORY_LOCATIONS, (m - 1)]),
+                m=(m - 1)),
+
+            (-1 * tf.slice(
+                a,
+                [0, 0, (m - 1)],
+                [MEMORY_LOCATIONS, MEMORY_LOCATIONS, 1]))], 1)
+
+
+def hypercomplex_multiply_2d(a, b, m=MEMORY_DEPTH):
+
+    if m == 1:
         return a * b
 
     else:
@@ -73,36 +94,144 @@ def hypercomplex_multiply(a, b, n=MEMORY_DEPTH):
         def cayley_dickson(p, q, r, s):
 
             return tf.concat([
-                (hypercomplex_multiply(p, r, n=(n//2)) -
-                 hypercomplex_multiply(hypercomplex_conjugate(s, n=(n//2)), q, n=(n//2))),
-                (hypercomplex_multiply(s, p, n=(n//2)) +
-                 hypercomplex_multiply(q, hypercomplex_conjugate(r, n=(n//2)), n=(n//2)))], 1)
+                (hypercomplex_multiply(
+                    p,
+                    r,
+                    m=(m//2)) -
+                hypercomplex_multiply(
+                    hypercomplex_conjugate_2d(s, m=(m//2)),
+                    q,
+                    m=(m//2))),
+                (hypercomplex_multiply(
+                    s,
+                    p,
+                    m=(m//2)) +
+                hypercomplex_multiply(
+                    q,
+                    hypercomplex_conjugate_2d(r, m=(m//2)),
+                    m=(m//2)))], 1)
 
         return cayley_dickson(
 
-            tf.strided_slice(
+            tf.slice(
                 a,
                 [0, 0],
-                [MEMORY_LOCATIONS, (n//2)],
-                strides=[1, 1]),
+                [MEMORY_LOCATIONS, (m//2)]),
 
-            tf.strided_slice(
+            tf.slice(
                 a,
-                [0, (n//2)],
-                [MEMORY_LOCATIONS, n],
-                strides=[1, 1]),
+                [0, (m//2)],
+                [MEMORY_LOCATIONS, (m//2)]),
 
-            tf.strided_slice(
+            tf.slice(
                 b,
                 [0, 0],
-                [MEMORY_LOCATIONS, (n//2)],
-                strides=[1, 1]),
+                [MEMORY_LOCATIONS, (m//2)]),
 
-            tf.strided_slice(
+            tf.slice(
                 b,
-                [0, (n//2)],
-                [MEMORY_LOCATIONS, n],
-                strides=[1, 1]))
+                [0, (m//2)],
+                [MEMORY_LOCATIONS, (m//2)]))
+
+
+def hypercomplex_multiply_3d(a, b, m=MEMORY_DEPTH):
+
+    if m == 1:
+        return a * b
+
+    else:
+
+        def cayley_dickson(p, q, r, s):
+
+            return tf.concat([
+                (hypercomplex_multiply(
+                    p,
+                    r,
+                    m=(m//2)) -
+                hypercomplex_multiply(
+                    hypercomplex_conjugate_3d(s, m=(m//2)),
+                    q,
+                    m=(m//2))),
+                (hypercomplex_multiply(
+                    s,
+                    p,
+                    m=(m//2)) +
+                hypercomplex_multiply(
+                    q,
+                    hypercomplex_conjugate_3d(r, m=(m//2)),
+                    m=(m//2)))], 1)
+
+        return cayley_dickson(
+
+            tf.slice(
+                a,
+                [0, 0, 0],
+                [MEMORY_LOCATIONS, MEMORY_LOCATIONS, (m//2)]),
+
+            tf.slice(
+                a,
+                [0, 0, (m//2)],
+                [MEMORY_LOCATIONS, MEMORY_LOCATIONS, (m//2)]),
+
+            tf.slice(
+                b,
+                [0, 0, 0],
+                [MEMORY_LOCATIONS, MEMORY_LOCATIONS, (m//2)]),
+
+            tf.slice(
+                b,
+                [0, 0, (m//2)],
+                [MEMORY_LOCATIONS, MEMORY_LOCATIONS, (m//2)]))
+
+
+def hypercomplex_dft(a, n=MEMORY_LOCATIONS, m=MEMORY_DEPTH, v=tf.ones(MEMORY_DEPTH)):
+
+    def hypercomplex_euler():
+
+        coefficients = tf.reshape(tf.tensordot(
+            tf.reshape(tf.range(n), [n, 1]),
+            tf.reshape(tf.range(n), [1, n]), 1), [n, n, 1])
+        amplitude = tf.exp(tf.slice(v, [0], [1]) * 2 * np.pi * coefficients / n)
+        magnitude = tf.sqrt(tf.reduce_sum(tf.square(tf.slice(v, [1], [m - 1]))))
+
+        return tf.concat([
+            (amplitude * tf.cos(2 * np.pi * coefficients * magnitude / n)),
+            (tf.tile(
+                amplitude * tf.sin(2 * np.pi * coefficients * magnitude / n) / magnitude,
+                [1, 1, (m - 1)])) * tf.reshape(tf.slice(v, [1], [m - 1]), [1, 1, (m - 1)])], 2)
+
+    return tf.reduce_sum(
+        hypercomplex_multiply(
+            1 / hypercomplex_euler(),
+            tf.tile(
+                tf.reshape(a, [n, 1, m]),
+                [1, n, 1]),
+            m=m), axis=0) / n
+
+
+def hypercomplex_idft(a, n=MEMORY_LOCATIONS, m=MEMORY_DEPTH, v=np.ones(MEMORY_DEPTH)):
+
+    def hypercomplex_euler():
+
+        coefficients = tf.reshape(tf.tensordot(
+            tf.reshape(tf.range(n), [n, 1]),
+            tf.reshape(tf.range(n), [1, n]), 1), [n, n, 1])
+        amplitude = tf.exp(tf.slice(v, [0], [1]) * 2 * np.pi * coefficients / n)
+        magnitude = tf.sqrt(tf.reduce_sum(tf.square(tf.slice(v, [1], [m - 1]))))
+
+        return tf.concat([
+            (amplitude * tf.cos(2 * np.pi * coefficients * magnitude / n)),
+            (tf.tile(
+                amplitude * tf.sin(2 * np.pi * coefficients * magnitude / n) / magnitude,
+                [1, 1, (m - 1)])) * tf.reshape(tf.slice(v, [1], [m - 1]), [1, 1, (m - 1)])], 2)
+
+    return tf.reduce_sum(
+        hypercomplex_multiply(
+            hypercomplex_euler(),
+            tf.tile(
+                tf.reshape(a, [n, 1, m]),
+                [1, n, 1]),
+            m=m), axis=0)
 
 
 def initialize_weights_cpu(
@@ -140,7 +269,7 @@ def initialize_biases_cpu(name, shape):
         biases = tf.get_variable(
             (name + EXTENSION_BIASES),
             shape,
-            initializer=tf.constant_initializer(1.0),
+            initializer=tf.constant_initializer(10.0),
             dtype=tf.float32)
 
     return biases
@@ -199,7 +328,7 @@ def controller(data_in):
             scope.name,
             [HIDDEN_SIZE, 1])
 
-        activation = tf.nn.softplus(
+        activation = tf.nn.sigmoid(
             tf.add(
                 tf.tensordot(tf.transpose(linear_w), activation, 1),
                 linear_b))
@@ -270,10 +399,10 @@ def controller(data_in):
 
         linear_uncertainty_w = initialize_weights_cpu(
             (scope.name + EXTENSION_UNCERTAINTY),
-            [HIDDEN_SIZE, SEQUENCE_LENGTH])
+            [HIDDEN_SIZE, 1])
         linear_uncertainty_b = initialize_biases_cpu(
             (scope.name + EXTENSION_UNCERTAINTY),
-            [SEQUENCE_LENGTH, 1])
+            [1, 1])
         uncertainty = tf.add(
             tf.tensordot(tf.transpose(linear_uncertainty_w), activation, 1),
             linear_uncertainty_b)
@@ -314,10 +443,10 @@ def update_memory(add_location, add_content, select_location, select_content):
 
         recovered_location = hypercomplex_multiply(
             memory,
-            hypercomplex_conjugate(select_content))
+            hypercomplex_conjugate_2d(select_content))
 
         recovered_content = hypercomplex_multiply(
-            hypercomplex_conjugate(select_location),
+            hypercomplex_conjugate_2d(select_location),
             memory)
 
         selection = tf.concat([
@@ -332,9 +461,11 @@ def update_memory(add_location, add_content, select_location, select_content):
 
 def similarity_loss(labels, prediction, uncertainty, collection):
 
+    uncertainty = tf.reduce_sum(uncertainty)
+
     adjusted_loss = (tf.nn.l2_loss(labels - prediction) /
-                     tf.exp(tf.reduce_sum(uncertainty)) +
-                     tf.reduce_sum(uncertainty))
+        tf.exp(uncertainty) +
+        (UNCERTAINTY_FACTOR * uncertainty))
 
     tf.add_to_collection(collection, adjusted_loss)
 
@@ -393,7 +524,7 @@ def train_model(num_epochs=1):
 
         feedback = tf.zeros([(MEMORY_LOCATIONS * MEMORY_DEPTH * 2), 1])
         predicted_sequence = tf.zeros([SEQUENCE_LENGTH, 0])
-        uncertainty_sequence = tf.zeros([SEQUENCE_LENGTH, 0])
+        uncertainty_sequence = tf.zeros([1, 0])
 
         for i in range(SEQUENCE_LENGTH):
 
@@ -413,7 +544,7 @@ def train_model(num_epochs=1):
         prediction_loss = similarity_loss(
             label_tensor,
             predicted_sequence,
-            uncertainty_sequence,
+            0 * uncertainty_sequence,
             (PREFIX_CONTROLLER + COLLECTION_LOSSES))
         predicted_indices = tf.argmax(predicted_sequence, axis=0)
 
