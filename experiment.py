@@ -11,9 +11,9 @@ CHECKPOINT_BASEDIR = (PROJECT_BASEDIR + "Backups/")
 
 SEQUENCE_LENGTH = 6
 MEMORY_LOCATIONS = 32
-MEMORY_DEPTH = 8
+MEMORY_DEPTH = 2
 HIDDEN_SIZE = 256
-INITIAL_LEARNING_RATE = 0.0001
+INITIAL_LEARNING_RATE = 0.0000001
 UNCERTAINTY_FACTOR = 1.0
 DECAY_STEPS = SEQUENCE_LENGTH
 DECAY_FACTOR = 1.0
@@ -447,9 +447,9 @@ def update_memory(add_location, add_content, select_location, select_content):
             hypercomplex_idft(add_location, kernel),
             add_content)
 
-        recovered_location = hypercomplex_dft(hypercomplex_multiply_2d(
+        recovered_location = hypercomplex_multiply_2d(
             hypercomplex_conjugate_2d(memory),
-            select_content), kernel)
+            select_content)
 
         recovered_content = hypercomplex_multiply_2d(
             hypercomplex_conjugate_2d(hypercomplex_idft(select_location, kernel)),
