@@ -13,7 +13,7 @@ SEQUENCE_LENGTH = 6
 MEMORY_LOCATIONS = 32
 MEMORY_DEPTH = 2
 HIDDEN_SIZE = 256
-INITIAL_LEARNING_RATE = 0.0000001
+INITIAL_LEARNING_RATE = 0.0001
 UNCERTAINTY_FACTOR = 1.0
 DECAY_STEPS = SEQUENCE_LENGTH
 DECAY_FACTOR = 1.0
@@ -269,7 +269,7 @@ def initialize_biases_cpu(name, shape):
         biases = tf.get_variable(
             (name + EXTENSION_BIASES),
             shape,
-            initializer=tf.constant_initializer(10.0),
+            initializer=tf.constant_initializer(0.0),
             dtype=tf.float32)
 
     return biases
@@ -328,7 +328,7 @@ def controller(data_in):
             scope.name,
             [HIDDEN_SIZE, 1])
 
-        activation = tf.nn.sigmoid(
+        activation = tf.nn.tanh(
             tf.add(
                 tf.tensordot(tf.transpose(linear_w), activation, 1),
                 linear_b))
@@ -444,7 +444,7 @@ def update_memory(add_location, add_content, select_location, select_content):
             [MEMORY_LOCATIONS, MEMORY_DEPTH])
 
         memory = memory + hypercomplex_multiply_2d(
-            hypercomplex_idft(add_location, kernel),
+            add_location,
             add_content)
 
         recovered_location = hypercomplex_multiply_2d(
@@ -452,7 +452,7 @@ def update_memory(add_location, add_content, select_location, select_content):
             select_content)
 
         recovered_content = hypercomplex_multiply_2d(
-            hypercomplex_conjugate_2d(hypercomplex_idft(select_location, kernel)),
+            hypercomplex_conjugate_2d(select_location),
             memory)
 
         selection = tf.concat([
@@ -467,7 +467,7 @@ def update_memory(add_location, add_content, select_location, select_content):
 
 def similarity_loss(labels, prediction, uncertainty, collection):
 
-    uncertainty = 0.0 * tf.reduce_sum(uncertainty)
+    uncertainty = tf.reduce_sum(uncertainty)
 
     adjusted_loss = (tf.nn.l2_loss(labels - prediction) /
         tf.exp(uncertainty) +
@@ -550,7 +550,7 @@ def train_model(num_epochs=1):
         prediction_loss = similarity_loss(
             label_tensor,
             predicted_sequence,
-            0 * uncertainty_sequence,
+            uncertainty_sequence,
             (PREFIX_CONTROLLER + COLLECTION_LOSSES))
         predicted_indices = tf.argmax(predicted_sequence, axis=0)
 
